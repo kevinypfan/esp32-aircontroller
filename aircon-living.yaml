@@ -1,0 +1,12 @@
+# 客廳冷氣 — 燒入用這個檔
+#   esphome run aircon-living.yaml --device maxe-aircon-living.local
+#
+# 第一次從舊韌體遷移（現在 hostname 還是 maxe-aircon）：
+#   esphome run aircon-living.yaml --device maxe-aircon.local
+
+substitutions:
+  device_name: maxe-aircon-living
+  friendly_name: 客廳冷氣
+
+packages:
+  common: !include maxe-aircon-common.yaml

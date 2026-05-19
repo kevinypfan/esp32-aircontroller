@@ -1,0 +1,165 @@
+# MAXE RA-50SH32 冷氣 ESPHome 共用設定（多台共用）
+# 透過 Midea UART 協定控制（CN3 接頭）
+#
+# 硬體：ESP32-C3 SuperMini + BSS138 level shifter + 470µF 緩衝電容
+# 詳細接線請見 HARDWARE.md
+#
+# ⚠️ 這個檔不要直接燒！由各台的小檔 include：
+#   - aircon-living.yaml   （客廳）
+#   - aircon-bedroom.yaml  （臥室）
+#
+# 兩個變數由各台的小檔用 substitutions 帶進來：
+#   ${device_name}    例如 maxe-aircon-living（小寫/數字/連字號，當 hostname）
+#   ${friendly_name}  例如 客廳冷氣（顯示用，可中文）
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32-c3-devkitm-1
+  variant: ESP32C3 # ⚠️ 必要：連 ASUS TUF-AX3000 的關鍵（實測單這行就夠，output_power 可不開）
+  framework:
+    type: arduino # midea 元件目前只支援 arduino framework
+
+# Logger 走 USB Serial/JTAG，把 UART0 留給冷氣
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+# API：給 Home Assistant 用，沒裝 HA 時純粹閒置
+api:
+  encryption:
+    key: !secret api_key
+
+# === OTA 韌體更新（無線）===
+# 接到冷氣後絕對不要再插 USB——所有更新走 OTA
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# === WiFi 設定 ===
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # output_power: 8.5   # 實測 variant: ESP32C3 單獨即可連上，這行先不開；若哪天連不上再取消註解
+
+  # 連不上 WiFi 時自動開啟熱點，方便重新設定（每台不同名避免相撞）
+  ap:
+    ssid: "${device_name}-fb"
+    password: !secret ap_password
+
+captive_portal:
+
+# === 內建網頁 UI ===
+# 瀏覽器打開 http://${device_name}.local/ 就能控制冷氣
+# 只在家裡內網有效（出門控制需要另外搞 HA + 隧道）
+web_server:
+  port: 80
+  version: 3
+  local: true # 把 UI 資源燒進 ESP（不需要 ESP 出網抓 CDN）
+
+# === UART 設定 ===
+# 透過 BSS138 接到冷氣 CN3
+uart:
+  tx_pin: GPIO21
+  rx_pin: GPIO20
+  baud_rate: 9600
+
+# === 主角：Midea climate ===
+climate:
+  - platform: midea
+    id: ac # 給下面的 switch 參照用
+    name: ${friendly_name}
+    period: 1s # 多久問冷氣一次狀態
+    timeout: 2s # 等待回應的最長時間
+    num_attempts: 3 # 失敗時重試次數
+    beeper: true # 收到命令時冷氣嗶一聲（debug 階段強烈建議開）
+
+    # autoconf 關掉，全手動 —— autoconf 會漏抓送風，且連上後可能覆蓋手動設定
+    autoconf: false
+
+    # 運轉模式（含送風 FAN_ONLY）
+    supported_modes:
+      - HEAT_COOL # 自動
+      - COOL # 冷氣
+      - HEAT # 暖氣
+      - DRY # 除濕
+      - FAN_ONLY # 送風
+
+    # 風速：自動/弱/中/強 是 midea 內建固定有，不用宣告。
+    # 這裡只加額外的「靜音 / 強勁」（你的機種不支援的話選了沒反應，可刪）
+    custom_fan_modes:
+      - SILENT # 靜音
+      - TURBO # 強勁
+
+    # 擺風方向（VERTICAL=上下；多數壁掛機只有上下電動擺葉。
+    #   你的機種若支援左右，可再加 HORIZONTAL / BOTH，不支援選了不會壞只是沒反應）
+    supported_swing_modes:
+      - VERTICAL
+
+    visual:
+      min_temperature: 16 °C
+      max_temperature: 30 °C
+      temperature_step: 1 °C
+
+# === HomeKit 補位開關 ===
+# HomeKit 恆溫器只有 關/冷/暖/自動，沒有送風跟除濕。
+# 這兩個 template switch 會以「獨立配件」出現在 Apple 家庭 App，
+# 可單獨開關、可用 Siri（例：「嘿 Siri 打開客廳冷氣送風」）
+switch:
+  - platform: template
+    id: sw_fan_only
+    name: "送風模式 Fan"
+    icon: mdi:fan
+    lambda: |-
+      return id(ac).mode == climate::CLIMATE_MODE_FAN_ONLY;
+    turn_on_action:
+      - climate.control:
+          id: ac
+          mode: FAN_ONLY
+    turn_off_action:
+      - climate.control:
+          id: ac
+          mode: "OFF"
+
+  - platform: template
+    id: sw_dry
+    name: "除濕模式 Dry"
+    icon: mdi:water-percent
+    lambda: |-
+      return id(ac).mode == climate::CLIMATE_MODE_DRY;
+    turn_on_action:
+      - climate.control:
+          id: ac
+          mode: DRY
+    turn_off_action:
+      - climate.control:
+          id: ac
+          mode: "OFF"
+
+# === 選配：監測模組本身的健康狀態 ===
+sensor:
+  - platform: uptime
+    name: "Module Uptime"
+    update_interval: 60s
+
+  - platform: wifi_signal
+    name: "Module WiFi Signal"
+    update_interval: 60s
+
+# 模組重啟按鈕
+button:
+  - platform: restart
+    name: "Module Restart"
+
+# === 故障排除提示 ===
+# 如果出現 "Response timeout"：
+#   - 對調 tx_pin / rx_pin（GPIO20 ↔ GPIO21）
+#   - 確認 BSS138 的 LV 腳接到 ESP 的 3V3
+#   - 確認 CN3 pin 順序
+#
+# 如果模組頻繁重開（brown-out）：
+#   - 多加一顆 470µF 電容並聯
+#   - 或改從外部 USB 5V 供電（GND 必須共地）
+#
+# 詳見 TROUBLESHOOTING.md
