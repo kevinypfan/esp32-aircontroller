@@ -2,8 +2,9 @@
 .esphome/
 secrets.yaml
 
-# HA 本機部署檔（含真實 entity_id，不入庫）
+# HA 本機部署檔／快照（含真實 entity_id、家中裝置名，不入公開 repo）
 *.local.yaml
+*.local.json
 
 # 本機交接/筆記檔（含內網 IP、存取細節，不入公開 repo）
 *.local.md
