@@ -5,6 +5,9 @@ secrets.yaml
 # HA 本機部署檔（含真實 entity_id，不入庫）
 *.local.yaml
 
+# 本機交接/筆記檔（含內網 IP、存取細節，不入公開 repo）
+*.local.md
+
 # Python
 __pycache__/
 *.pyc
