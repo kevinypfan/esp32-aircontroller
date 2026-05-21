@@ -25,7 +25,7 @@ input_number:
     min: 0
     max: 12
     step: 0.5
-    initial: 8
+    initial: 5
     unit_of_measurement: h
     icon: mdi:timer-sand
   bedroom_sleep_hours:
@@ -33,7 +33,7 @@ input_number:
     min: 0
     max: 12
     step: 0.5
-    initial: 8
+    initial: 5
     unit_of_measurement: h
     icon: mdi:timer-sand
   # 兩台共用的乾燥時間
@@ -93,6 +93,10 @@ automation:
     trigger:
       - platform: state
         entity_id: input_button.living_sleep_start
+    condition:
+      - condition: numeric_state
+        entity_id: input_number.living_sleep_hours
+        above: 0
     action:
       - service: timer.start
         target:
@@ -125,6 +129,21 @@ automation:
             - timer.living_sleep
             - timer.living_fan_dry
 
+  - id: living_sleep_abort
+    alias: 客廳冷氣 睡眠定時-手動關機即取消
+    trigger:
+      - platform: state
+        entity_id: climate.living   # ← 換成真實 entity_id
+        to: "off"
+    condition:
+      - condition: state
+        entity_id: timer.living_sleep
+        state: active
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.living_sleep
+
   - id: living_antimold
     alias: 客廳冷氣 自動防霉-關機前吹乾
     mode: single
@@ -151,6 +170,23 @@ automation:
         data:
           duration: "{{ (states('input_number.fan_dry_minutes') | float * 60) | int }}"
 
+  - id: living_antimold_abort
+    alias: 客廳冷氣 防霉乾燥-手動接手即取消
+    trigger:
+      - platform: state
+        entity_id: climate.living   # ← 換成真實 entity_id
+        from: fan_only
+    condition:
+      - condition: state
+        entity_id: timer.living_fan_dry
+        state: active
+      - condition: template
+        value_template: "{{ trigger.to_state.state not in ['unavailable','unknown'] }}"
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.living_fan_dry
+
   - id: living_fan_dry_finished
     alias: 客廳冷氣 乾燥結束-關機
     trigger:
@@ -158,6 +194,10 @@ automation:
         event_type: timer.finished
         event_data:
           entity_id: timer.living_fan_dry
+    condition:
+      - condition: state
+        entity_id: climate.living   # ← 換成真實 entity_id
+        state: fan_only
     action:
       - service: climate.turn_off
         target:
@@ -170,6 +210,10 @@ automation:
     trigger:
       - platform: state
         entity_id: input_button.bedroom_sleep_start
+    condition:
+      - condition: numeric_state
+        entity_id: input_number.bedroom_sleep_hours
+        above: 0
     action:
       - service: timer.start
         target:
@@ -201,6 +245,21 @@ automation:
             - timer.bedroom_sleep
             - timer.bedroom_fan_dry
 
+  - id: bedroom_sleep_abort
+    alias: 臥室冷氣 睡眠定時-手動關機即取消
+    trigger:
+      - platform: state
+        entity_id: climate.bedroom   # ← 換成真實 entity_id
+        to: "off"
+    condition:
+      - condition: state
+        entity_id: timer.bedroom_sleep
+        state: active
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.bedroom_sleep
+
   - id: bedroom_antimold
     alias: 臥室冷氣 自動防霉-關機前吹乾
     mode: single
@@ -227,6 +286,23 @@ automation:
         data:
           duration: "{{ (states('input_number.fan_dry_minutes') | float * 60) | int }}"
 
+  - id: bedroom_antimold_abort
+    alias: 臥室冷氣 防霉乾燥-手動接手即取消
+    trigger:
+      - platform: state
+        entity_id: climate.bedroom   # ← 換成真實 entity_id
+        from: fan_only
+    condition:
+      - condition: state
+        entity_id: timer.bedroom_fan_dry
+        state: active
+      - condition: template
+        value_template: "{{ trigger.to_state.state not in ['unavailable','unknown'] }}"
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.bedroom_fan_dry
+
   - id: bedroom_fan_dry_finished
     alias: 臥室冷氣 乾燥結束-關機
     trigger:
@@ -234,6 +310,10 @@ automation:
         event_type: timer.finished
         event_data:
           entity_id: timer.bedroom_fan_dry
+    condition:
+      - condition: state
+        entity_id: climate.bedroom   # ← 換成真實 entity_id
+        state: fan_only
     action:
       - service: climate.turn_off
         target:
