@@ -1,0 +1,383 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "lovelace.dashboard_main",
+  "data": {
+    "config": {
+      "views": [
+        {
+          "type": "sections",
+          "sections": [
+            {
+              "type": "grid",
+              "cards": [
+                {
+                  "type": "heading",
+                  "heading": "新區塊"
+                },
+                {
+                  "type": "weather-forecast",
+                  "entity": "weather.home",
+                  "forecast_type": "daily"
+                },
+                {
+                  "graph": "line",
+                  "type": "sensor",
+                  "entity": "sensor.bedroom_temperature",
+                  "detail": 1
+                },
+                {
+                  "graph": "line",
+                  "type": "sensor",
+                  "entity": "sensor.living_room_dht22_temperature",
+                  "detail": 1,
+                  "icon": ""
+                },
+                {
+                  "graph": "line",
+                  "type": "sensor",
+                  "entity": "sensor.bedroom_humidity",
+                  "detail": 1
+                },
+                {
+                  "graph": "line",
+                  "type": "sensor",
+                  "entity": "sensor.living_room_dht22_humidity",
+                  "detail": 1
+                },
+                {
+                  "camera_view": "live",
+                  "fit_mode": "cover",
+                  "type": "picture-glance",
+                  "entities": [
+                    {
+                      "entity": "button.pet_cam_1_move_up",
+                      "tap_action": {
+                        "action": "toggle"
+                      }
+                    },
+                    {
+                      "entity": "button.pet_cam_1_move_down",
+                      "tap_action": {
+                        "action": "toggle"
+                      }
+                    },
+                    {
+                      "entity": "button.pet_cam_1_move_left",
+                      "tap_action": {
+                        "action": "toggle"
+                      }
+                    },
+                    {
+                      "entity": "button.pet_cam_1_move_right",
+                      "tap_action": {
+                        "action": "toggle"
+                      }
+                    }
+                  ],
+                  "camera_image": "camera.pet_cam_1",
+                  "title": "Pet Cam 1"
+                },
+                {
+                  "camera_view": "live",
+                  "fit_mode": "cover",
+                  "type": "picture-glance",
+                  "entities": [
+                    {
+                      "entity": "button.pet_cam_2_move_up",
+                      "tap_action": {
+                        "action": "toggle"
+                      }
+                    },
+                    {
+                      "entity": "button.pet_cam_2_move_down",
+                      "tap_action": {
+                        "action": "toggle"
+                      }
+                    },
+                    {
+                      "entity": "button.pet_cam_2_move_left",
+                      "tap_action": {
+                        "action": "toggle"
+                      }
+                    },
+                    {
+                      "entity": "button.pet_cam_2_move_right",
+                      "tap_action": {
+                        "action": "toggle"
+                      }
+                    }
+                  ],
+                  "camera_image": "camera.pet_cam_2",
+                  "title": "Pet Cam 2"
+                }
+              ]
+            },
+            {
+              "type": "grid",
+              "cards": [
+                {
+                  "type": "heading",
+                  "heading": "新區塊"
+                },
+                {
+                  "type": "thermostat",
+                  "entity": "climate.bedroom",
+                  "show_current_as_primary": false,
+                  "name": {
+                    "type": "device"
+                  },
+                  "features": [
+                    {
+                      "type": "climate-hvac-modes"
+                    },
+                    {
+                      "type": "target-temperature"
+                    },
+                    {
+                      "type": "climate-fan-modes"
+                    },
+                    {
+                      "type": "climate-swing-modes",
+                      "style": "dropdown"
+                    }
+                  ]
+                },
+                {
+                  "type": "horizontal-stack",
+                  "grid_options": {
+                    "columns": 12
+                  },
+                  "cards": [
+                    {
+                      "type": "custom:mushroom-number-card",
+                      "entity": "input_number.bedroom_sleep_hours",
+                      "name": "睡眠時數",
+                      "icon": "mdi:timer-sand",
+                      "display_mode": "buttons"
+                    },
+                    {
+                      "type": "custom:mushroom-template-card",
+                      "primary": "設定",
+                      "secondary": "排定關機",
+                      "icon": "mdi:power-sleep",
+                      "icon_color": "indigo",
+                      "tap_action": {
+                        "action": "perform-action",
+                        "perform_action": "input_button.press",
+                        "target": {
+                          "entity_id": "input_button.bedroom_sleep_start"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "custom:mushroom-template-card",
+                  "primary": "{% if is_state('timer.bedroom_sleep','active') %}{{ as_timestamp(state_attr('timer.bedroom_sleep','finishes_at')) | timestamp_custom('%H:%M') }} 自動關機{% else %}睡眠定時：未設定{% endif %}",
+                  "secondary": "{% if is_state('timer.bedroom_sleep','active') %}點此取消{% else %}設定時數後按「設定」{% endif %}",
+                  "icon": "{% if is_state('timer.bedroom_sleep','active') %}mdi:timer-sand{% else %}mdi:timer-off-outline{% endif %}",
+                  "icon_color": "{% if is_state('timer.bedroom_sleep','active') %}blue{% else %}disabled{% endif %}",
+                  "tap_action": {
+                    "action": "perform-action",
+                    "perform_action": "timer.cancel",
+                    "target": {
+                      "entity_id": "timer.bedroom_sleep"
+                    }
+                  },
+                  "grid_options": {
+                    "columns": 12
+                  }
+                },
+                {
+                  "type": "conditional",
+                  "conditions": [
+                    {
+                      "entity": "timer.bedroom_fan_dry",
+                      "state": "active"
+                    }
+                  ],
+                  "grid_options": {
+                    "columns": 12
+                  },
+                  "card": {
+                    "type": "custom:mushroom-template-card",
+                    "primary": "防霉吹乾中",
+                    "secondary": "{{ as_timestamp(state_attr('timer.bedroom_fan_dry','finishes_at')) | timestamp_custom('%H:%M') }} 吹乾完自動關",
+                    "icon": "mdi:weather-windy",
+                    "icon_color": "teal"
+                  }
+                },
+                {
+                  "type": "entities",
+                  "title": "防霉 / 嗶聲",
+                  "show_header_toggle": false,
+                  "grid_options": {
+                    "columns": 12
+                  },
+                  "entities": [
+                    {
+                      "entity": "input_boolean.bedroom_antimold_enabled",
+                      "name": "自動防霉"
+                    },
+                    {
+                      "entity": "switch.bedroom_beeper",
+                      "name": "嗶聲（關=靜音）"
+                    }
+                  ]
+                },
+                {
+                  "type": "light",
+                  "entity": "light.bedroom_lamp",
+                  "grid_options": {
+                    "columns": 6,
+                    "rows": "auto"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "grid",
+              "cards": [
+                {
+                  "type": "heading",
+                  "heading": "新區塊"
+                },
+                {
+                  "type": "thermostat",
+                  "entity": "climate.living",
+                  "show_current_as_primary": false,
+                  "name": {
+                    "type": "device"
+                  },
+                  "features": [
+                    {
+                      "type": "climate-hvac-modes"
+                    },
+                    {
+                      "type": "target-temperature"
+                    },
+                    {
+                      "type": "climate-fan-modes"
+                    },
+                    {
+                      "type": "climate-swing-modes",
+                      "style": "dropdown"
+                    }
+                  ]
+                },
+                {
+                  "type": "horizontal-stack",
+                  "grid_options": {
+                    "columns": 12
+                  },
+                  "cards": [
+                    {
+                      "type": "custom:mushroom-number-card",
+                      "entity": "input_number.living_sleep_hours",
+                      "name": "睡眠時數",
+                      "icon": "mdi:timer-sand",
+                      "display_mode": "buttons"
+                    },
+                    {
+                      "type": "custom:mushroom-template-card",
+                      "primary": "設定",
+                      "secondary": "排定關機",
+                      "icon": "mdi:power-sleep",
+                      "icon_color": "indigo",
+                      "tap_action": {
+                        "action": "perform-action",
+                        "perform_action": "input_button.press",
+                        "target": {
+                          "entity_id": "input_button.living_sleep_start"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "custom:mushroom-template-card",
+                  "primary": "{% if is_state('timer.living_sleep','active') %}{{ as_timestamp(state_attr('timer.living_sleep','finishes_at')) | timestamp_custom('%H:%M') }} 自動關機{% else %}睡眠定時：未設定{% endif %}",
+                  "secondary": "{% if is_state('timer.living_sleep','active') %}點此取消{% else %}設定時數後按「設定」{% endif %}",
+                  "icon": "{% if is_state('timer.living_sleep','active') %}mdi:timer-sand{% else %}mdi:timer-off-outline{% endif %}",
+                  "icon_color": "{% if is_state('timer.living_sleep','active') %}blue{% else %}disabled{% endif %}",
+                  "tap_action": {
+                    "action": "perform-action",
+                    "perform_action": "timer.cancel",
+                    "target": {
+                      "entity_id": "timer.living_sleep"
+                    }
+                  },
+                  "grid_options": {
+                    "columns": 12
+                  }
+                },
+                {
+                  "type": "conditional",
+                  "conditions": [
+                    {
+                      "entity": "timer.living_fan_dry",
+                      "state": "active"
+                    }
+                  ],
+                  "grid_options": {
+                    "columns": 12
+                  },
+                  "card": {
+                    "type": "custom:mushroom-template-card",
+                    "primary": "防霉吹乾中",
+                    "secondary": "{{ as_timestamp(state_attr('timer.living_fan_dry','finishes_at')) | timestamp_custom('%H:%M') }} 吹乾完自動關",
+                    "icon": "mdi:weather-windy",
+                    "icon_color": "teal"
+                  }
+                },
+                {
+                  "type": "entities",
+                  "title": "防霉 / 嗶聲",
+                  "show_header_toggle": false,
+                  "grid_options": {
+                    "columns": 12
+                  },
+                  "entities": [
+                    {
+                      "entity": "input_boolean.living_antimold_enabled",
+                      "name": "自動防霉"
+                    },
+                    {
+                      "entity": "switch.living_beeper",
+                      "name": "嗶聲（關=靜音）"
+                    }
+                  ]
+                },
+                {
+                  "type": "button",
+                  "entity": "switch.living_fan",
+                  "grid_options": {
+                    "columns": 6,
+                    "rows": 4
+                  }
+                }
+              ]
+            },
+            {
+              "type": "grid",
+              "cards": [
+                {
+                  "type": "heading",
+                  "heading": "冷氣自動化 (debug)"
+                },
+                {
+                  "type": "markdown",
+                  "grid_options": {
+                    "columns": 12
+                  },
+                  "content": "{% for s in states.automation | selectattr('attributes.friendly_name','defined') | selectattr('attributes.friendly_name','search','冷氣') | sort(attribute='attributes.friendly_name') %}- {{ '🟢' if s.state=='on' else '⚪' }} {{ s.attributes.friendly_name }} · {{ (as_timestamp(s.attributes.last_triggered)|timestamp_custom('%m/%d %H:%M')) if s.attributes.last_triggered else '—' }}\n{% endfor %}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
