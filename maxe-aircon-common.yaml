@@ -137,6 +137,21 @@ switch:
           id: ac
           mode: "OFF"
 
+  # === 半夜靜音用：嗶聲 Beeper 開關 ===
+  # 關掉後，自動防霉/睡眠定時關機那幾聲嗶會靜音（含手動）；開機預設 on。
+  # 用 midea 執行期 beeper 控制（單一 midea 實例不需指定 id）。
+  # 注意：climate 區塊的 beeper: true 是「開機預設」，這個 switch 之後會覆蓋它。
+  - platform: template
+    id: sw_beeper
+    name: "嗶聲 Beeper"
+    icon: mdi:volume-source
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    turn_on_action:
+      - midea_ac.beeper_on:
+    turn_off_action:
+      - midea_ac.beeper_off:
+
 # === 選配：監測模組本身的健康狀態 ===
 sensor:
   - platform: uptime
