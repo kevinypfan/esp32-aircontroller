@@ -371,7 +371,7 @@
                   "grid_options": {
                     "columns": 12
                   },
-                  "content": "{% for s in states.automation | selectattr('attributes.friendly_name','defined') | selectattr('attributes.friendly_name','search','冷氣') | sort(attribute='attributes.friendly_name') %}- {{ '🟢' if s.state=='on' else '⚪' }} {{ s.attributes.friendly_name }} · {{ (as_timestamp(s.attributes.last_triggered)|timestamp_custom('%m/%d %H:%M')) if s.attributes.last_triggered else '—' }}\n{% endfor %}"
+                  "content": "{% for s in states.automation | selectattr('attributes.friendly_name','defined') | selectattr('attributes.friendly_name','search','冷氣') | sort(attribute='attributes.friendly_name') %}- {{ '🟢' if s.state=='on' else '⚪' }} {{ s.attributes.friendly_name }} · {{ (as_timestamp(s.attributes.last_triggered)|timestamp_custom('%m/%d %H:%M')) if s.attributes.last_triggered else '—' }}\n{% endfor %}\n_自動更新 {{ now().strftime('%H:%M') }}_"
                 }
               ]
             }
