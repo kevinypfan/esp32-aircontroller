@@ -2,6 +2,9 @@
 .esphome/
 secrets.yaml
 
+# HA 本機部署檔（含真實 entity_id，不入庫）
+*.local.yaml
+
 # Python
 __pycache__/
 *.pyc

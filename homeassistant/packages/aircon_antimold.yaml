@@ -1,0 +1,240 @@
+# =============================================================================
+# 冷氣防霉乾燥自動化 (Home Assistant package)
+# =============================================================================
+# 功能：
+#   1. 睡眠定時：設定 N 小時 → 到時關機 (方案 B：交給自動防霉吹乾)
+#   2. 自動防霉：每次從冷氣/除濕關機 (含 IR 遙控器)，自動先吹送風 N 分鐘再真正關
+#
+# 部署：放到 HAOS /config/packages/ 並在 configuration.yaml 啟用 packages
+#       (詳見 homeassistant/README.md)
+#
+# ⚠️ 部署前必改：下方所有 climate.living / climate.bedroom 換成你 HA 裡的
+#    真實 climate entity_id (開發者工具 → 狀態 查；中文名產生的 id 無法事先猜)
+#    本機部署檔 aircon_antimold.local.yaml 已填好真實值 (gitignore，不入庫)
+#
+# ⚠️ 方案 B 耦合：睡眠定時要吹乾，自動防霉總開關 (input_boolean.*_antimold_enabled)
+#    必須是 on。防霉 off 時睡眠定時 = 純延遲關機 (不吹乾)。
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+input_number:
+  living_sleep_hours:
+    name: 客廳冷氣 睡眠定時時數
+    min: 0
+    max: 12
+    step: 0.5
+    initial: 8
+    unit_of_measurement: h
+    icon: mdi:timer-sand
+  bedroom_sleep_hours:
+    name: 臥室冷氣 睡眠定時時數
+    min: 0
+    max: 12
+    step: 0.5
+    initial: 8
+    unit_of_measurement: h
+    icon: mdi:timer-sand
+  # 兩台共用的乾燥時間
+  fan_dry_minutes:
+    name: 防霉乾燥時間
+    min: 0
+    max: 120
+    step: 5
+    initial: 60
+    unit_of_measurement: min
+    icon: mdi:fan-clock
+
+input_boolean:
+  living_antimold_enabled:
+    name: 客廳冷氣 自動防霉
+    icon: mdi:shield-sun
+  bedroom_antimold_enabled:
+    name: 臥室冷氣 自動防霉
+    icon: mdi:shield-sun
+
+input_button:
+  living_sleep_start:
+    name: 客廳冷氣 啟動睡眠定時
+    icon: mdi:power-sleep
+  living_sleep_cancel:
+    name: 客廳冷氣 取消睡眠定時
+    icon: mdi:timer-off
+  bedroom_sleep_start:
+    name: 臥室冷氣 啟動睡眠定時
+    icon: mdi:power-sleep
+  bedroom_sleep_cancel:
+    name: 臥室冷氣 取消睡眠定時
+    icon: mdi:timer-off
+
+timer:
+  living_sleep:
+    name: 客廳冷氣 睡眠倒數
+    restore: true
+  living_fan_dry:
+    name: 客廳冷氣 乾燥倒數
+    restore: true
+  bedroom_sleep:
+    name: 臥室冷氣 睡眠倒數
+    restore: true
+  bedroom_fan_dry:
+    name: 臥室冷氣 乾燥倒數
+    restore: true
+
+# ---------------------------------------------------------------------------
+# Automations
+# ---------------------------------------------------------------------------
+automation:
+  # ===== 客廳 =====
+  - id: living_sleep_start
+    alias: 客廳冷氣 睡眠定時-啟動
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: input_button.living_sleep_start
+    action:
+      - service: timer.start
+        target:
+          entity_id: timer.living_sleep
+        data:
+          duration: "{{ (states('input_number.living_sleep_hours') | float * 3600) | int }}"
+
+  - id: living_sleep_finished
+    alias: 客廳冷氣 睡眠定時-到時關機
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.living_sleep
+    action:
+      # 方案 B：直接關。冷氣若在 cool/dry，cool→off 會被下方自動防霉接手吹乾 (需防霉 on)
+      - service: climate.turn_off
+        target:
+          entity_id: climate.living   # ← 換成真實 entity_id
+
+  - id: living_sleep_cancel
+    alias: 客廳冷氣 睡眠定時-取消
+    trigger:
+      - platform: state
+        entity_id: input_button.living_sleep_cancel
+    action:
+      - service: timer.cancel
+        target:
+          entity_id:
+            - timer.living_sleep
+            - timer.living_fan_dry
+
+  - id: living_antimold
+    alias: 客廳冷氣 自動防霉-關機前吹乾
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: climate.living   # ← 換成真實 entity_id
+        from:
+          - cool
+          - dry
+        to: "off"
+    condition:
+      - condition: state
+        entity_id: input_boolean.living_antimold_enabled
+        state: "on"
+    action:
+      - service: climate.set_hvac_mode
+        target:
+          entity_id: climate.living   # ← 換成真實 entity_id
+        data:
+          hvac_mode: fan_only
+      - service: timer.start
+        target:
+          entity_id: timer.living_fan_dry
+        data:
+          duration: "{{ (states('input_number.fan_dry_minutes') | float * 60) | int }}"
+
+  - id: living_fan_dry_finished
+    alias: 客廳冷氣 乾燥結束-關機
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.living_fan_dry
+    action:
+      - service: climate.turn_off
+        target:
+          entity_id: climate.living   # ← 換成真實 entity_id
+
+  # ===== 臥室 =====
+  - id: bedroom_sleep_start
+    alias: 臥室冷氣 睡眠定時-啟動
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: input_button.bedroom_sleep_start
+    action:
+      - service: timer.start
+        target:
+          entity_id: timer.bedroom_sleep
+        data:
+          duration: "{{ (states('input_number.bedroom_sleep_hours') | float * 3600) | int }}"
+
+  - id: bedroom_sleep_finished
+    alias: 臥室冷氣 睡眠定時-到時關機
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.bedroom_sleep
+    action:
+      - service: climate.turn_off
+        target:
+          entity_id: climate.bedroom   # ← 換成真實 entity_id
+
+  - id: bedroom_sleep_cancel
+    alias: 臥室冷氣 睡眠定時-取消
+    trigger:
+      - platform: state
+        entity_id: input_button.bedroom_sleep_cancel
+    action:
+      - service: timer.cancel
+        target:
+          entity_id:
+            - timer.bedroom_sleep
+            - timer.bedroom_fan_dry
+
+  - id: bedroom_antimold
+    alias: 臥室冷氣 自動防霉-關機前吹乾
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: climate.bedroom   # ← 換成真實 entity_id
+        from:
+          - cool
+          - dry
+        to: "off"
+    condition:
+      - condition: state
+        entity_id: input_boolean.bedroom_antimold_enabled
+        state: "on"
+    action:
+      - service: climate.set_hvac_mode
+        target:
+          entity_id: climate.bedroom   # ← 換成真實 entity_id
+        data:
+          hvac_mode: fan_only
+      - service: timer.start
+        target:
+          entity_id: timer.bedroom_fan_dry
+        data:
+          duration: "{{ (states('input_number.fan_dry_minutes') | float * 60) | int }}"
+
+  - id: bedroom_fan_dry_finished
+    alias: 臥室冷氣 乾燥結束-關機
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.bedroom_fan_dry
+    action:
+      - service: climate.turn_off
+        target:
+          entity_id: climate.bedroom   # ← 換成真實 entity_id
