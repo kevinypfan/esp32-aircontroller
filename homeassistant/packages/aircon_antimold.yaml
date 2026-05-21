@@ -10,6 +10,8 @@
 #
 # ⚠️ 部署前必改：下方所有 climate.living / climate.bedroom 換成你 HA 裡的
 #    真實 climate entity_id (開發者工具 → 狀態 查；中文名產生的 id 無法事先猜)
+#    beeper v3 還用到 switch.living_beeper / switch.bedroom_beeper (ESPHome 的
+#    嗶聲 switch entity_id)，也一併換成真實值。
 #    本機部署檔 aircon_antimold.local.yaml 已填好真實值 (gitignore，不入庫)
 #
 # ⚠️ 方案 B 耦合：睡眠定時要吹乾，自動防霉總開關 (input_boolean.*_antimold_enabled)
@@ -53,6 +55,14 @@ input_boolean:
   bedroom_antimold_enabled:
     name: 臥室冷氣 自動防霉
     icon: mdi:shield-sun
+  # beeper v3 內部旗標：標記「beeper 原本是開、被自動化暫時靜音」，供還原自動化判斷。
+  # 不顯示在主控板。使用者自己關 beeper 時不會被立旗標 → 不會被自動化偷開。
+  living_beeper_restore_pending:
+    name: 客廳冷氣 beeper 待還原（內部用）
+    icon: mdi:volume-off
+  bedroom_beeper_restore_pending:
+    name: 臥室冷氣 beeper 待還原（內部用）
+    icon: mdi:volume-off
 
 input_button:
   living_sleep_start:
@@ -112,6 +122,19 @@ automation:
         event_data:
           entity_id: timer.living_sleep
     action:
+      # beeper v3：發指令前先靜音（僅在 beeper 原本開著時標旗標+關，尊重手動關）
+      - if:
+          - condition: state
+            entity_id: switch.living_beeper   # ← 換成真實 entity_id
+            state: "on"
+        then:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.living_beeper_restore_pending
+          - service: switch.turn_off
+            target:
+              entity_id: switch.living_beeper   # ← 換成真實 entity_id
+          - delay: "00:00:01"
       # 方案 B：直接關。冷氣若在 cool/dry，cool→off 會被下方自動防霉接手吹乾 (需防霉 on)
       - service: climate.turn_off
         target:
@@ -159,6 +182,19 @@ automation:
         entity_id: input_boolean.living_antimold_enabled
         state: "on"
     action:
+      # beeper v3：轉送風前先靜音（連鎖時 sleep_finished 已關 beeper，此 if 不成立、不重複標）
+      - if:
+          - condition: state
+            entity_id: switch.living_beeper   # ← 換成真實 entity_id
+            state: "on"
+        then:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.living_beeper_restore_pending
+          - service: switch.turn_off
+            target:
+              entity_id: switch.living_beeper   # ← 換成真實 entity_id
+          - delay: "00:00:01"
       - service: climate.set_hvac_mode
         target:
           entity_id: climate.living   # ← 換成真實 entity_id
@@ -199,9 +235,52 @@ automation:
         entity_id: climate.living   # ← 換成真實 entity_id
         state: fan_only
     action:
+      # beeper v3：吹乾完關機前靜音（連鎖中通常已靜音，此為保險）
+      - if:
+          - condition: state
+            entity_id: switch.living_beeper   # ← 換成真實 entity_id
+            state: "on"
+        then:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.living_beeper_restore_pending
+          - service: switch.turn_off
+            target:
+              entity_id: switch.living_beeper   # ← 換成真實 entity_id
+          - delay: "00:00:01"
       - service: climate.turn_off
         target:
           entity_id: climate.living   # ← 換成真實 entity_id
+
+  - id: living_beeper_restore
+    alias: 客廳冷氣 beeper 還原（自動指令後）
+    # 兩 timer 都閒置滿 10s 且旗標有立 → 還原 beeper。10s debounce 吸收 sleep→antimold 連鎖空檔。
+    trigger:
+      - platform: state
+        entity_id: timer.living_sleep
+        to: "idle"
+        for: "00:00:10"
+      - platform: state
+        entity_id: timer.living_fan_dry
+        to: "idle"
+        for: "00:00:10"
+    condition:
+      - condition: state
+        entity_id: input_boolean.living_beeper_restore_pending
+        state: "on"
+      - condition: state
+        entity_id: timer.living_sleep
+        state: idle
+      - condition: state
+        entity_id: timer.living_fan_dry
+        state: idle
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.living_beeper   # ← 換成真實 entity_id
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.living_beeper_restore_pending
 
   # ===== 臥室 =====
   - id: bedroom_sleep_start
@@ -229,6 +308,19 @@ automation:
         event_data:
           entity_id: timer.bedroom_sleep
     action:
+      # beeper v3：發指令前先靜音（僅在 beeper 原本開著時標旗標+關，尊重手動關）
+      - if:
+          - condition: state
+            entity_id: switch.bedroom_beeper   # ← 換成真實 entity_id
+            state: "on"
+        then:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.bedroom_beeper_restore_pending
+          - service: switch.turn_off
+            target:
+              entity_id: switch.bedroom_beeper   # ← 換成真實 entity_id
+          - delay: "00:00:01"
       - service: climate.turn_off
         target:
           entity_id: climate.bedroom   # ← 換成真實 entity_id
@@ -275,6 +367,19 @@ automation:
         entity_id: input_boolean.bedroom_antimold_enabled
         state: "on"
     action:
+      # beeper v3：轉送風前先靜音（連鎖時 sleep_finished 已關 beeper，此 if 不成立、不重複標）
+      - if:
+          - condition: state
+            entity_id: switch.bedroom_beeper   # ← 換成真實 entity_id
+            state: "on"
+        then:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.bedroom_beeper_restore_pending
+          - service: switch.turn_off
+            target:
+              entity_id: switch.bedroom_beeper   # ← 換成真實 entity_id
+          - delay: "00:00:01"
       - service: climate.set_hvac_mode
         target:
           entity_id: climate.bedroom   # ← 換成真實 entity_id
@@ -315,6 +420,49 @@ automation:
         entity_id: climate.bedroom   # ← 換成真實 entity_id
         state: fan_only
     action:
+      # beeper v3：吹乾完關機前靜音（連鎖中通常已靜音，此為保險）
+      - if:
+          - condition: state
+            entity_id: switch.bedroom_beeper   # ← 換成真實 entity_id
+            state: "on"
+        then:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.bedroom_beeper_restore_pending
+          - service: switch.turn_off
+            target:
+              entity_id: switch.bedroom_beeper   # ← 換成真實 entity_id
+          - delay: "00:00:01"
       - service: climate.turn_off
         target:
           entity_id: climate.bedroom   # ← 換成真實 entity_id
+
+  - id: bedroom_beeper_restore
+    alias: 臥室冷氣 beeper 還原（自動指令後）
+    # 兩 timer 都閒置滿 10s 且旗標有立 → 還原 beeper。10s debounce 吸收 sleep→antimold 連鎖空檔。
+    trigger:
+      - platform: state
+        entity_id: timer.bedroom_sleep
+        to: "idle"
+        for: "00:00:10"
+      - platform: state
+        entity_id: timer.bedroom_fan_dry
+        to: "idle"
+        for: "00:00:10"
+    condition:
+      - condition: state
+        entity_id: input_boolean.bedroom_beeper_restore_pending
+        state: "on"
+      - condition: state
+        entity_id: timer.bedroom_sleep
+        state: idle
+      - condition: state
+        entity_id: timer.bedroom_fan_dry
+        state: idle
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.bedroom_beeper   # ← 換成真實 entity_id
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.bedroom_beeper_restore_pending
