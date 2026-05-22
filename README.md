@@ -8,9 +8,8 @@
 
 | | 官方 MRP-0508 路線 | DIY 路線（本專案） |
 |---|---|---|
-| 花費 | 模組買全套，未知價格 | < 200 元零件 |
-| 雲端依賴 | 走 MAXE/Midea 雲端 | 本地直連 HA |
-| 延遲 | 1~3 秒 | < 100ms |
+| 花費 | 模組買全套，未知價格 | 幾個零件，便宜得多 |
+| 雲端依賴 | 走原廠雲端 | 本地直連 HA |
 | 自動化 | App 內建有限 | HA 全部自動化都能用 |
 | 整合度 | 自家 App | Apple Home / Google / Alexa 任選 |
 
@@ -43,11 +42,15 @@ RA-50SH32 是美的（Midea）OEM 機種——主板印著 `KFR-35G/E` 是鐵證
 - [aircon-living.yaml](aircon-living.yaml) — 客廳那台的燒入入口
 - [aircon-bedroom.yaml](aircon-bedroom.yaml) — 臥室那台的燒入入口
 
+Home Assistant 端的自動化（自動防霉吹乾 / 睡眠定時 / beeper 半夜靜音）放在 [homeassistant/](homeassistant/)（含 package YAML 與說明）。
+
 之後若要加日立除濕機、IR 電扇控制,會以同樣方式新增各自的入口檔。
 
 ---
 
 ## 進度追蹤
+
+> ✅ **已完成並上線運作中**：兩台冷氣（客廳＋臥室）實接 ESP，ESPHome + Home Assistant 控制中；防霉吹乾 / 睡眠定時 / beeper 半夜靜音都已部署驗證。下面是當初的施工清單，留作紀錄。
 
 ### 規劃階段
 - [x] 確認冷氣是 Midea OEM 機種（KFR-35G）
@@ -114,6 +117,7 @@ RA-50SH32 是美的（Midea）OEM 機種——主板印著 `KFR-35G/E` 是鐵證
 | [maxe-aircon-common.yaml](maxe-aircon-common.yaml) | ESPHome 共用設定(各台 `!include`,不直接燒) |
 | [aircon-living.yaml](aircon-living.yaml) | 客廳那台燒入入口 |
 | [aircon-bedroom.yaml](aircon-bedroom.yaml) | 臥室那台燒入入口 |
+| [homeassistant/](homeassistant/) | HA 端自動化（防霉吹乾 / 睡眠定時 / beeper 靜音）package 與說明 |
 | [secrets.yaml.example](secrets.yaml.example) | 密碼/金鑰範例（複製成 secrets.yaml 後填寫） |
 
 ## 參考資源
