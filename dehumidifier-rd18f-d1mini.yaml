@@ -1,0 +1,147 @@
+# 日立除濕機 RD-18FJ — D1 mini (ESP8266) 實驗版
+#   首次（USB）：  esphome run dehumidifier-rd18f-d1mini.yaml
+#   之後（OTA）：  esphome run dehumidifier-rd18f-d1mini.yaml --device hitachi-rd18f-d1.local
+#
+# 這是 ESP8266 版，跟正式的 C3 版（dehumidifier-rd18f.yaml）平行存在、互不影響。
+# device_name 不同（hitachi-rd18f-d1），兩塊板可同時在線上。
+#
+# ESP8266 與 C3 的差異（重點）：
+#   - 只有一組全雙工 UART（UART0=GPIO1/GPIO3）→ logger 改走 UART1(GPIO2，只送不收)，UART0 留給 taixia
+#   - 沒有 USB-JTAG → 序列 log 要接 GPIO2，或直接走網路：esphome logs ... --device hitachi-rd18f-d1.local
+#   - RAM 小 → 拿掉 web_server（v3 太吃資源）
+#   - 沒有 variant: ESP32C3 這個 ASUS 相容旋鈕 → WiFi 能不能連是這次的實驗重點
+#
+# 接線（同 C3，3.3V 邏輯，經 BSS138 接服務埠 JST PAP-04-V 5V）：
+#   服務埠 Pin1 5V  → D1 mini 5V 腳
+#   服務埠 Pin2 GND → D1 mini GND
+#   服務埠 Pin3 Rx  ← BSS138 ← D1 mini TX(GPIO1)
+#   服務埠 Pin4 Tx  → BSS138 → D1 mini RX(GPIO3)
+#   ⚠️ 接服務埠後別再插 USB（GPIO1/3 會衝突，且安全考量同冷氣）
+
+substitutions:
+  device_name: hitachi-rd18f-d1
+  friendly_name: 除濕機D1
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp8266:
+  board: d1_mini
+
+# logger 走 UART1（GPIO2，只送不收），把 UART0(GPIO1/3) 讓給 taixia
+logger:
+  hardware_uart: UART1
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # output_power: 8.5   # 若像 C3 那樣 Auth Expired 連不上，取消註解調低發射功率再試
+  ap:
+    ssid: "${device_name}-fb"
+    password: !secret ap_password
+
+# 註：ESP8266 RAM 小，這版刻意不開 web_server / captive_portal。
+#     要設定走 HA、要 log 走網路或 GPIO2。
+
+# === TaiSEIA UART（UART0=GPIO1/3，經 BSS138 接服務埠）===
+uart:
+  id: uart_taixia
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 9600
+
+external_components:
+  - source: github://tsunglung/taixia@master
+    components: [taixia]
+
+taixia:
+  id: taixia_hub
+  uart_id: uart_taixia
+  sa_id: 4
+
+switch:
+  - platform: taixia
+    type: dehumidifier
+    power:
+      name: "電源 Power"
+    beeper:
+      name: "嗶聲 Beeper"
+    mildew_proof:
+      name: "防霉 Mildew"
+    lock:
+      name: "童鎖 Lock"
+
+number:
+  - platform: taixia
+    type: dehumidifier
+    relative_humidity:
+      name: "目標濕度 Target Humidity"
+    dehumidifier_level:
+      name: "除濕等級 Dehumidify Level"
+    fan_level:
+      name: "風速 Fan Level"
+    dry_level:
+      name: "乾燥等級 Dry Level"
+    operating_time:
+      name: "定時 Timer"
+
+select:
+  - platform: taixia
+    type: dehumidifier
+    operating_program:
+      name: "運轉模式 Mode"
+
+sensor:
+  - platform: taixia
+    type: dehumidifier
+    humidity_indoor:
+      name: "室內濕度 Indoor Humidity"
+    temperature_indoor:
+      name: "室內溫度 Indoor Temp"
+    operating_watt:
+      name: "耗電 Power"
+    energy_consumption:
+      name: "累積用電 Energy"
+
+  - platform: uptime
+    name: "Module Uptime"
+    update_interval: 60s
+  - platform: wifi_signal
+    name: "Module WiFi Signal"
+    update_interval: 60s
+
+binary_sensor:
+  - platform: taixia
+    type: dehumidifier
+    water_tank_full:
+      name: "水箱滿水 Water Full"
+    defrost:
+      name: "除霜中 Defrost"
+    filter_notify:
+      name: "濾網清潔提醒 Filter"
+
+text_sensor:
+  - platform: taixia
+    sa_id:
+      name: "SA ID"
+    brand:
+      name: "SA Brand"
+    model:
+      name: "SA Model"
+    version:
+      name: "SA Version"
+    services:
+      name: "SA Services"
+
+button:
+  - platform: restart
+    name: "Module Restart"

@@ -1,0 +1,170 @@
+# 日立除濕機 RD-18FJ — 燒入用這個檔（單檔自帶完整設定，不像冷氣拆 common）
+#   首次（USB 線）：  esphome run dehumidifier-rd18f.yaml
+#   之後（OTA 無線）：esphome run dehumidifier-rd18f.yaml --device hitachi-rd18f.local
+#
+# 控制方式：TaiSEIA 101 協定（不是冷氣的 Midea），透過社群外部元件 tsunglung/taixia。
+# 硬體：ESP32-C3 SuperMini + BSS138 level shifter，插進除濕機的廠商服務埠
+#       （官方 WiFi 模組 RC-W04XE 插的那個孔，接頭 Hitachi JST PAP-04-V，5V 邏輯）
+#
+# 服務埠 JST PAP-04-V 腳位（5V 邏輯，務必經 BSS138 轉 3.3V）：
+#   Pin1 5V   → C3 的 5V 腳（供電，板載 LDO 降 3.3V）
+#   Pin2 GND  → C3 GND
+#   Pin3 Rx(設備收) ← BSS138 高壓側 ← C3 TX(GPIO21) 低壓側
+#   Pin4 Tx(設備送) → BSS138 高壓側 → C3 RX(GPIO20) 低壓側
+#
+# ⚠️ 接線/插拔前先把除濕機斷電。詳見 HARDWARE.md。
+
+substitutions:
+  device_name: hitachi-rd18f
+  friendly_name: 除濕機
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32-c3-devkitm-1
+  variant: ESP32C3 # ⚠️ 必要：連 ASUS TUF-AX3000 的關鍵（沿用兩台冷氣的經驗）
+  framework:
+    type: arduino
+    # 註：taixia 上游範例用 esp-idf；這裡為與既有兩台冷氣一致先用 arduino。
+    #     若 taixia 在 arduino 編譯不過，改成 esp-idf 再試（變數設定不受影響）。
+
+# Logger 走 USB Serial/JTAG，把 UART0 留給除濕機（同冷氣做法）
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+# API：給 Home Assistant
+api:
+  encryption:
+    key: !secret api_key
+
+# OTA：接到除濕機後別再插 USB，更新走無線
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# WiFi（沿用既有 secrets）
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  output_power: 8.5 # 這塊板子單靠 variant 認證失敗（Auth Expired），加這行才連得上 ASUS TUF-AX3000
+  ap:
+    ssid: "${device_name}-fb"
+    password: !secret ap_password
+
+captive_portal:
+
+# 內建網頁 UI（內網 http://hitachi-rd18f.local/）
+web_server:
+  port: 80
+  version: 3
+  local: true
+
+# === TaiSEIA UART（經 BSS138 接服務埠）===
+uart:
+  id: uart_taixia
+  tx_pin: GPIO21
+  rx_pin: GPIO20
+  baud_rate: 9600
+
+# === taixia 主元件 ===
+external_components:
+  - source: github://tsunglung/taixia@master # 建議日後釘 commit/tag 避免上游變動
+    components: [taixia]
+
+taixia:
+  id: taixia_hub
+  uart_id: uart_taixia
+  sa_id: 4 # 4 = 除濕機（TaiSEIA SA ID）
+
+# === 除濕機是 switch + number + select + sensor + binary_sensor 組合（沒有 climate）===
+
+switch:
+  - platform: taixia
+    type: dehumidifier
+    power:
+      name: "電源 Power"
+    beeper:
+      name: "嗶聲 Beeper" # 0x18，可接半夜靜音（同冷氣的 beeper 邏輯）
+    mildew_proof:
+      name: "防霉 Mildew" # 0x13
+    lock:
+      name: "童鎖 Lock" # 0x16
+
+number:
+  - platform: taixia
+    type: dehumidifier
+    relative_humidity:
+      name: "目標濕度 Target Humidity" # 0x03，範圍 40~70 %
+    dehumidifier_level:
+      name: "除濕等級 Dehumidify Level" # 0x04，0~15
+    fan_level:
+      name: "風速 Fan Level" # 0x0E，0~15
+    dry_level:
+      name: "乾燥等級 Dry Level" # 0x05，0~15
+    operating_time:
+      name: "定時 Timer" # 0x02，0~99
+
+select:
+  - platform: taixia
+    type: dehumidifier
+    operating_program:
+      name: "運轉模式 Mode" # auto/normal/away/boost/baby/sleep/fan/comfort/home/eco
+
+sensor:
+  - platform: taixia
+    type: dehumidifier
+    humidity_indoor:
+      name: "室內濕度 Indoor Humidity"
+    temperature_indoor:
+      name: "室內溫度 Indoor Temp"
+    operating_watt:
+      name: "耗電 Power"
+    energy_consumption:
+      name: "累積用電 Energy"
+
+  # 模組本身健康狀態
+  - platform: uptime
+    name: "Module Uptime"
+    update_interval: 60s
+  - platform: wifi_signal
+    name: "Module WiFi Signal"
+    update_interval: 60s
+
+binary_sensor:
+  - platform: taixia
+    type: dehumidifier
+    water_tank_full:
+      name: "水箱滿水 Water Full" # 0x0A
+    defrost:
+      name: "除霜中 Defrost" # 0x11
+    filter_notify:
+      name: "濾網清潔提醒 Filter" # 0x0B
+
+# 裝置資訊（debug 用：確認有讀到設備）
+text_sensor:
+  - platform: taixia
+    sa_id:
+      name: "SA ID"
+    brand:
+      name: "SA Brand"
+    model:
+      name: "SA Model"
+    version:
+      name: "SA Version"
+    services:
+      name: "SA Services"
+
+# 模組重啟按鈕
+button:
+  - platform: restart
+    name: "Module Restart"
+
+# === 故障排除提示 ===
+# 讀不到設備 / timeout：
+#   - 對調 tx_pin / rx_pin（GPIO21 ↔ GPIO20）
+#   - 確認 BSS138 LV 接 C3 的 3V3、HV 接服務埠側 5V
+#   - 確認 JST PAP-04-V pin 順序（5V/GND/Rx/Tx）
+#   - 用 `esphome logs dehumidifier-rd18f.yaml` 看 SA Brand/Model 有沒有跑出來
+# 模組頻繁重開（brown-out）：並聯 470µF 電容，或外部 5V 供電（須共地）
